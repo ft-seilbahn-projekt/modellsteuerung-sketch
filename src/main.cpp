@@ -12,7 +12,8 @@ enum Ternary_t // 3-state logic
 
 enum SwarmTypeElement_t
 {
-    Digital
+    Digital,
+    Analog
 };
 
 class Node
@@ -23,6 +24,10 @@ public:
 
     FtSwarmSwitch *asSwitch;
     Ternary_t asSwitchState;
+
+    FtSwarmAnalogInput *asAnalogInput;
+    uint16_t asAnalogInputValue;
+    uint16_t asAnalogThreshold;
 
     Node *next;
     bool has_next;
@@ -97,57 +102,23 @@ void printNodes()
     Serial.println("#debug ]");
 }
 
-bool containsNode(const char *name)
-{
-    if (!has_list_elems)
-        return false;
-
-    Node *current = head;
-
-
-    while (true)
-    {
-        if (strcmp(current->name, name) == 0)
-        {
-            return true;
-        }
-
-        if (!current->has_next) break;
-
-        current = current->next;
-    }
-    return false;
-}
-
-Node *getNode(const char *name)
-{
-    if (!has_list_elems)
-        return nullptr;
-
-    Node *current = head;
-
-
-    while (true)
-    {
-        if (strcmp(current->name, name) == 0)
-        {
-            return current;
-        }
-
-        if (!current->has_next) break;
-
-        current = current->next;
-    }
-    return nullptr;
-}
-
 void doDigital(Node *node) {
     Ternary_t actual = fromBool(node->asSwitch->getState());
-    
+
     if (actual == node->asSwitchState) return;
 
     Serial.printf("!%s %d\r\n", node->name, node->asSwitch->getState());
     node->asSwitchState = actual;
+}
+
+void doAnalog(Node *node) {
+    uint16_t actual = node->asAnalogInput->getValue();
+
+    uint16_t diff = abs(actual - node->asAnalogInputValue);
+    if (diff < node->asAnalogThreshold) return;
+
+    node->asAnalogInputValue = actual;
+    Serial.printf("!%s %d\r\n", node->name, actual);
 }
 
 void setup()
@@ -193,13 +164,6 @@ void loop()
             if (command.startsWith("digital"))
             {
                 command = command.substring(8);
-                //if (containsNode(command.c_str()))
-                //{
-                //    Serial.printf("#info Already Subscribed to Button Press on %s\r\n", command.c_str());
-                //    Serial.println("neu sub");
-                //    return;
-                //}
-
                 Node *node = new Node();
 
                 strcpy(node->name, command.c_str());
@@ -211,6 +175,27 @@ void loop()
                 appendNode(node);
 
                 Serial.printf("#debug Subscribed to Button Press on %s\r\n", command.c_str());
+                Serial.println("suc sub");
+                return;
+            } else if (command.startsWith("analog")) {
+                command = command.substring(7);
+                Node *node = new Node();
+
+                auto toSplitAt = command.indexOf(" ");
+
+                String threshold = command.substring(0, toSplitAt);
+                command = command.substring(toSplitAt+1);
+
+                strcpy(node->name, command.c_str());
+                node->type = SwarmTypeElement_t::Analog;
+                node->asAnalogInput = new FtSwarmAnalogInput(command.c_str());
+                node->asAnalogInputValue = 0;
+                node->asAnalogThreshold = threshold.toInt();
+                node->has_next = false;
+
+                appendNode(node);
+
+                Serial.printf("#debug Subscribed to Analog Input on %s\r\n", command.c_str());
                 Serial.println("suc sub");
                 return;
             }
@@ -303,6 +288,9 @@ void loop()
         switch (current->type) {
             case Digital:
                 doDigital(current);
+                break;
+            case Analog:
+                doAnalog(current);
                 break;
         }
 
