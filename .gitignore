@@ -1,0 +1,6 @@
+.pio
+.vscode
+.idea
+*.iml
+CMakeListsPrivate.txt
+cmake-build-lolin32
