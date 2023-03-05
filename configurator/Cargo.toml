@@ -1,0 +1,19 @@
+[package]
+name = "configurator"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clipboard = "0.5"
+glium = { version = "0.32.1", default-features = true }
+image = "0.24.5"
+imgui = { version = "0.10.0", features = ["tables-api"] }
+imgui-glium-renderer = "0.10.0"
+imgui-winit-support = "0.10.0"
+serial2 = "0.1.7"
+lazy_static = "1.4.0"
+serde = { version = "1.0.152" , features = ["derive"] }
+serde_json = "1.0.93"
+dirs = "4.0.0"
