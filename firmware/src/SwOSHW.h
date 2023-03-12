@@ -7,8 +7,9 @@
  * 
  */
  
- #pragma once
+#pragma once
 
+#include "SwOS.h"
 #include <stdint.h>
 
 #include <nvs.h>
@@ -16,11 +17,15 @@
 #include <driver/gpio.h>
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
-
-#include <FastLED.h>
-#include <WiFi.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+
+#ifdef FIRWAMRE_FTSWARM
+  #include <FastLED.h>
+#endif
+
+#include <LSM6DSRSensor.h>
+#include <WiFi.h>
 
 #include "ftSwarm.h"
 #include "jsonize.h"
@@ -140,8 +145,7 @@ class SwOSEventInput {
 
 class SwOSInput : public SwOSIO, public SwOSEventInput {
 protected:
-  gpio_num_t        _GPIO, _PUA2, _USTX;
-	adc1_channel_t    _ADCChannel;
+  int8_t            _GPIO, _PUA2, _USTX, _ADCChannel, _ADCUnit;
 	FtSwarmSensor_t   _sensorType;
 	uint32_t          _lastRawValue;
   FtSwarmToggle_t   _toggle;
@@ -333,72 +337,30 @@ class SwOSServo : public SwOSIO {
 
 /***************************************************
  *
- *   SwOSOLED
+ *   SwOSGyro
  *
  ***************************************************/
 
-class SwOSOLED : public SwOSIO {
-  protected:
-    Adafruit_SSD1306 *_display = NULL;
-    uint8_t _textSizeX = 0;
-    uint8_t _textSizeY = 0;
+class SwOSGyro : public SwOSIO {
+  private:
+    LSM6DSRSensor *_gyro = NULL;
+    int32_t       _accelerometer[3];
+    int32_t       _gyroscope[3];
     
     // local HW procedures
     virtual void _setupLocal(); // initializes local HW
     
   public:
     // constructor
-	  SwOSOLED(const char *name, SwOSCtrl *ctrl);
+	  SwOSGyro(const char *name, SwOSCtrl *ctrl);
 
     // administrative stuff
-	  virtual FtSwarmIOType_t getIOType() { return FTSWARM_OLED; };
+	  virtual FtSwarmIOType_t getIOType() { return FTSWARM_GYRO; };
+    virtual char *getIcon() { return (char *) "25_gyro.svg"; };
+    virtual void jsonize( JSONize *json, uint8_t id);
 
-    void display(void);
-    void invertDisplay(bool i);
-    void fillScreen( bool white);    
-    void dim(bool dim);
-    int16_t getWidth(void);
-    int16_t getHeight(void);
-    
-    void drawPixel(int16_t x, int16_t y, bool white);  
-    void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, bool white);
-    void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, bool fill, bool white);
-    void drawRoundRect(int16_t x0, int16_t y0, int16_t w, int16_t h, int16_t radius, bool fill, bool white);
-    void drawCircle(int16_t x0, int16_t y0, int16_t r, bool fill, bool white);
-    void drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool fill, bool white);
-    void drawChar(int16_t x, int16_t y, unsigned char c, bool color, bool bg, uint8_t size_x, uint8_t size_y);
-    void write( char *str, int16_t x, int16_t y, FtSwarmAlign_t align , bool fill );
-    void write( char *str );
-   
-    void setCursor(int16_t x, int16_t y);
-    void getCursor(int16_t *x, int16_t *y);
-
-    void setTextColor(bool c, bool bg);
-    void setTextWrap(bool w);
-
-    void setRotation(uint8_t r);
-    uint8_t getRotation(void);
-
-    void setTextSize(uint8_t sx, uint8_t sy);
-    void getTextSize( uint8_t *sx, uint8_t *sy );
-    
-    void getTextBounds(const char *string, int16_t x, int16_t y, int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
-
-};
-
-/***************************************************
- *
- *   SwOSGyro
- *
- ***************************************************/
-
-class SwOSGyro : public SwOSIO {
-public:
-  // constructor
-	SwOSGyro(const char *name, SwOSCtrl *ctrl);
-
-  // administrative stuff
-	virtual FtSwarmIOType_t getIOType() { return FTSWARM_GYRO; };
+    // read sensor
+    virtual void     read();
 
 };
 
@@ -423,7 +385,7 @@ public:
   // commands
 	virtual FtSwarmToggle_t getToggle();
 	virtual bool getState();
-  virtual void setState( bool state );
+  virtual void setState( bool state, bool clearToggle = false );
 };
 
 /***************************************************
@@ -459,6 +421,66 @@ public:
 
 /***************************************************
  *
+ *   SwOSOLED
+ *
+ ***************************************************/
+
+class SwOSOLED : public SwOSIO {
+  protected:
+
+    Adafruit_SSD1306 *_display = NULL;
+    
+    uint8_t _textSizeX = 0;
+    uint8_t _textSizeY = 0;
+    uint8_t _displayType = 0;
+    
+    // local HW procedures
+    virtual void _setupLocal(); // initializes local HW
+    
+  public:
+    // constructor
+    SwOSOLED(const char *name, SwOSCtrl *ctrl, uint8_t displayType);
+
+    // administrative stuff
+    virtual FtSwarmIOType_t getIOType() { return FTSWARM_OLED; };
+
+      void display(void);
+      void invertDisplay(bool i);
+      void fillScreen( bool white);    
+      void dim(bool dim);
+      void setContrast(uint8_t contrast = 0x8F );
+      int16_t getWidth(void);
+      int16_t getHeight(void);
+    
+      void drawPixel(int16_t x, int16_t y, bool white);  
+      void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, bool white);
+      void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, bool fill, bool white);
+      void drawRoundRect(int16_t x0, int16_t y0, int16_t w, int16_t h, int16_t radius, bool fill, bool white);
+      void drawCircle(int16_t x0, int16_t y0, int16_t r, bool fill, bool white);
+      void drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool fill, bool white);
+      void drawChar(int16_t x, int16_t y, unsigned char c, bool color, bool bg, uint8_t size_x, uint8_t size_y);
+      void write( char *str, int16_t x, int16_t y, FtSwarmAlign_t align , bool fill );
+      void write( char *str );
+   
+      void setCursor(int16_t x, int16_t y);
+      void getCursor(int16_t *x, int16_t *y);
+
+      void setTextColor(bool c, bool bg);
+      void setTextWrap(bool w);
+
+      void setRotation(uint8_t r);
+      uint8_t getRotation(void);
+
+      void setTextSize(uint8_t sx, uint8_t sy);
+      void getTextSize( uint8_t *sx, uint8_t *sy );
+    
+      void getTextBounds(const char *string, int16_t x, int16_t y, int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
+
+    
+};
+
+/***************************************************
+ *
  *   SwOSCtrl - Base class for controllers.
  *
  ***************************************************/
@@ -475,9 +497,10 @@ public:
   uint8_t mac[ESP_NOW_ETH_ALEN] = {0,0,0,0,0,0};
   
   // common hardware
-	SwOSInput    *input[4];
-	SwOSActor    *actor[2]; 
+	SwOSInput    *input[MAXINPUTS];
+	SwOSActor    *actor[MAXACTORS]; 
 	SwOSGyro     *gyro;
+  uint8_t      inputs, actors;
 	
   // constructor, destructor
   SwOSCtrl( FtSwarmSerialNumber_t SN, const uint8_t *macAddress, bool local, FtSwarmVersion_t CPU, FtSwarmVersion_t HAT, bool IAmAKelda );
@@ -521,7 +544,7 @@ public:
   virtual bool recvState( SwOSCom *com );      // receive state from another ftSwarmXX
   virtual SwOSCom *state2Com( void );          // copy my state in a com struct
   virtual void registerMe( SwOSCom *com );     // fill in my own data in registerCmd datagram
-  virtual void sendAlias( uint8_t *mac ) {};   // send my alias names
+  virtual void sendAlias( uint8_t *mac, FtSwarmSerialNumber_t destinationSN ) {};   // send my alias names
     
 };
 
@@ -564,7 +587,7 @@ public:
   // **** Communications *****
   virtual bool OnDataRecv( SwOSCom *com ); // data via espnow revceived
   virtual void registerMe( SwOSCom *com );     // fill in my own data in registerCmd datagram
-  virtual void sendAlias( uint8_t *mac );
+  virtual void sendAlias( uint8_t *mac, FtSwarmSerialNumber_t destinationSN );
 
 };
 
@@ -577,6 +600,7 @@ public:
 class SwOSSwarmControl : public SwOSCtrl {
 protected:
   boolean _remoteControl = false;
+  boolean _firstRead     = true;
 public:
   // specific hardware
 	SwOSButton   *button[8];
@@ -584,7 +608,7 @@ public:
 	SwOSJoystick *joystick[2];
 	SwOSOLED     *oled;
 
-	SwOSSwarmControl(FtSwarmSerialNumber_t SN, const uint8_t *macAddress, bool local, FtSwarmVersion_t CPU, FtSwarmVersion_t HAT, bool IAmAKelda, int16_t zero[2][2] ); // constructor
+	SwOSSwarmControl(FtSwarmSerialNumber_t SN, const uint8_t *macAddress, bool local, FtSwarmVersion_t CPU, FtSwarmVersion_t HAT, bool IAmAKelda, int16_t zero[2][2], uint8_t displayType ); // constructor
   SwOSSwarmControl( SwOSCom *com ); // constructor
   ~SwOSSwarmControl(); // destructor
   
@@ -609,6 +633,47 @@ public:
   virtual SwOSCom *state2Com( void );        // copy my state in a com struct
   virtual bool OnDataRecv( SwOSCom *com );   // data via espnow revceived
   virtual void registerMe( SwOSCom *com );   // fill in my own data in registerCmd datagram
-  virtual void sendAlias( uint8_t *mac );    // send my alias names
+  virtual void sendAlias( uint8_t *mac, FtSwarmSerialNumber_t destinationSN );    // send my alias names
+
+};
+
+/***************************************************
+ *
+ *   SwOSSwarmCAM
+ *
+ ***************************************************/
+
+class SwOSSwarmCAM : public SwOSCtrl {
+protected:
+  boolean _remoteControl = false;
+public:
+  // specific hardware
+
+  SwOSSwarmCAM(FtSwarmSerialNumber_t SN, const uint8_t *macAddress, bool local, FtSwarmVersion_t CPU, FtSwarmVersion_t HAT, bool IAmAKelda ); // constructor
+  SwOSSwarmCAM( SwOSCom *com ); // constructor
+  ~SwOSSwarmCAM(); // destructor
+  
+  // administrative stuff
+  virtual bool cmdAlias( char *device, uint8_t port, const char *alias); // set an alias for a IO device
+  virtual SwOSIO *getIO( FtSwarmIOType_t ioType,  FtSwarmPort_t port);   // get a pointer to the requested IO Device via type & port
+  virtual SwOSIO *getIO( const char *name);                              // get a pointer to the requested IO Device via name or alias
+  virtual char* myType();                                                // what I am?
+  virtual FtSwarmControler_t getType();                                  // what I am?
+  virtual void jsonize( JSONize *json, uint8_t id);                      // send board & IO device information as a json string
+  virtual void loadAliasFromNVS(  nvs_handle_t my_handle );              // write my alias to NVS
+  virtual void saveAliasToNVS(  nvs_handle_t my_handle );                // load my alias from NVS
+  virtual void setState( SwOSState_t state, uint8_t members, char *SSID ); // visualizes controler's state like booting, error,...
+  virtual void factorySettings( void );                                  // reset factory settings
+  virtual boolean getRemoteControl( void );                              // get remote control setting
+  virtual void setRemoteControl( boolean remoteControl );                // set remote control setting
+
+  virtual void read();                       // run measurements
+
+  // **** Communications *****
+  virtual bool recvState( SwOSCom *com );    // receive state from another FtSwarmControl
+  virtual SwOSCom *state2Com( void );        // copy my state in a com struct
+  virtual bool OnDataRecv( SwOSCom *com );   // data via espnow revceived
+  virtual void registerMe( SwOSCom *com );   // fill in my own data in registerCmd datagram
+  virtual void sendAlias( uint8_t *mac, FtSwarmSerialNumber_t destinationSN );    // send my alias names
 
 };
